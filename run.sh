@@ -1,0 +1,1 @@
+uv run python Examples/Primes/generate_img_analyse_chars.py --max-number 100_000 --cell-size 3 --square-dots --word PRIME --min-confidence 90
