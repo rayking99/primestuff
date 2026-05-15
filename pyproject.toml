@@ -1,12 +1,11 @@
 [project]
 name = "primewords"
 version = "0.1.0"
-description = "Render prime graphs and search them for word-like patterns."
+description = "Render prime graphs and generate prime visualisations."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
 	"numpy>=2.2.0",
-	"opencv-python>=4.11.0.86",
 	"pandas>=2.2.3",
 	"pillow>=11.0.0",
 ]

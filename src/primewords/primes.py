@@ -15,19 +15,55 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from html import escape
+import json
 from math import isqrt
 import os
 from pathlib import Path
 import struct
-from typing import Any, BinaryIO, Callable, Iterable, Sequence
+from typing import Any, BinaryIO, Callable, Iterable, Sequence, TypedDict
 import zlib
 
 PNG_MAX_DIMENSION = 2_147_483_647
 DEFAULT_SEGMENT_SIZE = 8_000_000
 DEFAULT_IDAT_CHUNK_SIZE = 1_048_576
+DEFAULT_PLOTLY_CDN_URL = "https://cdn.plot.ly/plotly-2.35.2.min.js"
 
 ProgressCallback = Callable[[int, int, int], None]
 LineProgressCallback = Callable[[int, int, int], None]
+
+
+class _PrimeCubeCellData(TypedDict):
+    x: list[float]
+    y: list[float]
+    z: list[float]
+    text: list[str]
+    hovertext: list[str]
+
+
+class _PrimeCubeLabelData(TypedDict):
+    x: list[float]
+    y: list[float]
+    z: list[float]
+    text: list[str]
+
+
+class _PrimeCubeCellGroups(TypedDict):
+    primes: _PrimeCubeCellData
+    composites: _PrimeCubeCellData
+    labels: _PrimeCubeLabelData
+
+
+class _PrimeCubeMeshData(TypedDict):
+    x: list[float]
+    y: list[float]
+    z: list[float]
+    i: list[int]
+    j: list[int]
+    k: list[int]
+    text: list[str]
+    hovertext: list[str]
+
 
 LINE_DIRECTIONS = (
     "horizontal",
@@ -49,6 +85,21 @@ class PrimeDotImage:
     image_height: int
     cell_size: int
     primes_plotted: int
+
+
+@dataclass(frozen=True)
+class PrimeCubeHtml:
+    """Metadata for a generated interactive prime-cube HTML file."""
+
+    output_path: Path
+    plane_width: int
+    plane_height: int
+    layers: int
+    max_number: int
+    primes_plotted: int
+    composites_plotted: int
+    longest_prime_line: tuple[int, ...]
+    longest_prime_line_direction: tuple[int, int, int]
 
 
 @dataclass(frozen=True)
@@ -245,6 +296,100 @@ def generate_graph_dots(
         max_number=max_number,
         output_path=output_path,
         **kwargs,
+    )
+
+
+def generate_prime_cube_plot_html(
+    output_path: str | Path,
+    *,
+    plane_width: int = 3,
+    plane_height: int = 3,
+    layers: int | None = 3,
+    max_number: int | None = None,
+    title: str | None = None,
+    plotly_cdn_url: str = DEFAULT_PLOTLY_CDN_URL,
+) -> PrimeCubeHtml:
+    """Generate an interactive Plotly HTML view of primes in a 3D grid.
+
+    Numbers fill each horizontal plane row by row, then continue downward to
+    the next plane. With the default ``3 x 3 x 3`` layout, ``1`` is directly
+    above ``10`` and ``19``, ``2`` is directly above ``11`` and ``20``, and
+    ``9`` is directly above ``18`` and ``27``.
+    """
+
+    _validate_positive_integer(plane_width, "plane_width")
+    _validate_positive_integer(plane_height, "plane_height")
+
+    plane_size = plane_width * plane_height
+    if max_number is None:
+        if layers is None:
+            raise ValueError("layers is required when max_number is omitted")
+        _validate_positive_integer(layers, "layers")
+        max_number = plane_size * layers
+    else:
+        _validate_positive_integer(max_number, "max_number")
+        required_layers = (max_number + plane_size - 1) // plane_size
+        if layers is None:
+            layers = required_layers
+        else:
+            _validate_positive_integer(layers, "layers")
+            if max_number > plane_size * layers:
+                raise ValueError(
+                    "max_number does not fit inside the requested 3D grid; "
+                    "increase layers or pass layers=None"
+                )
+
+    assert layers is not None
+    output = Path(output_path).expanduser()
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    base_primes = _base_primes_upto(isqrt(max_number))
+    prime_flags = _prime_flags_for_range(
+        start=1,
+        stop=max_number + 1,
+        base_primes=base_primes,
+    )
+    cells = _prime_cube_cells(
+        prime_flags=prime_flags,
+        plane_width=plane_width,
+        plane_height=plane_height,
+        layers=layers,
+    )
+    longest_line_numbers, longest_line_direction = _longest_prime_cube_line(
+        prime_flags=prime_flags,
+        plane_width=plane_width,
+        plane_height=plane_height,
+        layers=layers,
+    )
+    grid = _prime_cube_grid_lines(
+        plane_width=plane_width,
+        plane_height=plane_height,
+        layers=layers,
+    )
+    document = _prime_cube_html_document(
+        title=title or f"Prime Cube {plane_width}x{plane_height}x{layers}",
+        plane_width=plane_width,
+        plane_height=plane_height,
+        layers=layers,
+        max_number=max_number,
+        cells=cells,
+        longest_line_numbers=longest_line_numbers,
+        longest_line_direction=longest_line_direction,
+        grid=grid,
+        plotly_cdn_url=plotly_cdn_url,
+    )
+    output.write_text(document, encoding="utf-8")
+
+    return PrimeCubeHtml(
+        output_path=output,
+        plane_width=plane_width,
+        plane_height=plane_height,
+        layers=layers,
+        max_number=max_number,
+        primes_plotted=len(cells["primes"]["x"]),
+        composites_plotted=len(cells["composites"]["x"]),
+        longest_prime_line=longest_line_numbers,
+        longest_prime_line_direction=longest_line_direction,
     )
 
 
@@ -903,6 +1048,441 @@ def _prime_flags_for_range(
     return flags
 
 
+def _prime_cube_cells(
+    *,
+    prime_flags: bytearray,
+    plane_width: int,
+    plane_height: int,
+    layers: int,
+) -> _PrimeCubeCellGroups:
+    plane_size = plane_width * plane_height
+    primes: _PrimeCubeCellData = {
+        "x": [],
+        "y": [],
+        "z": [],
+        "text": [],
+        "hovertext": [],
+    }
+    composites: _PrimeCubeCellData = {
+        "x": [],
+        "y": [],
+        "z": [],
+        "text": [],
+        "hovertext": [],
+    }
+    labels: _PrimeCubeLabelData = {
+        "x": [],
+        "y": [],
+        "z": [],
+        "text": [],
+    }
+
+    for number, is_prime in enumerate(prime_flags, start=1):
+        layer_index = (number - 1) // plane_size
+        position_in_layer = (number - 1) % plane_size
+        row = position_in_layer // plane_width
+        column = position_in_layer % plane_width
+        x = column + 0.5
+        y = plane_height - row - 0.5
+        z = layers - layer_index - 0.5
+        target = primes if is_prime else composites
+        label = str(number)
+        hover_kind = "Prime" if is_prime else "Composite / non-prime"
+        hovertext = (
+            f"Number {number}<br>{hover_kind}<br>"
+            f"Layer {layer_index + 1}, row {row + 1}, column {column + 1}"
+        )
+
+        target["x"].append(x)
+        target["y"].append(y)
+        target["z"].append(z)
+        target["text"].append(label)
+        target["hovertext"].append(hovertext)
+        labels["x"].append(x)
+        labels["y"].append(y)
+        labels["z"].append(z)
+        labels["text"].append(label)
+
+    return {"primes": primes, "composites": composites, "labels": labels}
+
+
+def _longest_prime_cube_line(
+    *,
+    prime_flags: bytearray,
+    plane_width: int,
+    plane_height: int,
+    layers: int,
+) -> tuple[tuple[int, ...], tuple[int, int, int]]:
+    plane_size = plane_width * plane_height
+    prime_coordinates: set[tuple[int, int, int]] = set()
+
+    for number, is_prime in enumerate(prime_flags, start=1):
+        if not is_prime:
+            continue
+        layer = (number - 1) // plane_size
+        position_in_layer = (number - 1) % plane_size
+        row = position_in_layer // plane_width
+        column = position_in_layer % plane_width
+        prime_coordinates.add((column, row, layer))
+
+    best_numbers: tuple[int, ...] = ()
+    best_direction = (0, 0, 0)
+
+    for direction in _prime_cube_line_directions():
+        dx, dy, dz = direction
+        for coordinate in prime_coordinates:
+            previous = (coordinate[0] - dx, coordinate[1] - dy, coordinate[2] - dz)
+            if previous in prime_coordinates:
+                continue
+
+            run_coordinates: list[tuple[int, int, int]] = []
+            current = coordinate
+            while current in prime_coordinates:
+                run_coordinates.append(current)
+                current = (current[0] + dx, current[1] + dy, current[2] + dz)
+
+            numbers = tuple(
+                coordinate[2] * plane_size
+                + coordinate[1] * plane_width
+                + coordinate[0]
+                + 1
+                for coordinate in run_coordinates
+            )
+            if _prime_cube_line_is_better(numbers, best_numbers):
+                best_numbers = numbers
+                best_direction = direction
+
+    return best_numbers, best_direction
+
+
+def _prime_cube_line_directions() -> tuple[tuple[int, int, int], ...]:
+    directions: list[tuple[int, int, int]] = []
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                direction = (dx, dy, dz)
+                if direction == (0, 0, 0):
+                    continue
+                if next(value for value in direction if value != 0) < 0:
+                    continue
+                directions.append(direction)
+    return tuple(directions)
+
+
+def _prime_cube_line_is_better(
+    candidate: tuple[int, ...],
+    current: tuple[int, ...],
+) -> bool:
+    if len(candidate) != len(current):
+        return len(candidate) > len(current)
+    if not current:
+        return True
+    return min(candidate) < min(current)
+
+
+def _prime_cube_direction_label(direction: tuple[int, int, int]) -> str:
+    dx, dy, dz = direction
+    return f"column {dx:+d}, row {dy:+d}, layer {dz:+d}"
+
+
+def _prime_cube_line_cells(
+    *,
+    cells: _PrimeCubeCellData,
+    numbers: tuple[int, ...],
+    direction: tuple[int, int, int],
+) -> _PrimeCubeCellData:
+    selected = {str(number) for number in numbers}
+    result: _PrimeCubeCellData = {
+        "x": [],
+        "y": [],
+        "z": [],
+        "text": [],
+        "hovertext": [],
+    }
+    line_summary = (
+        f"Longest prime line<br>Length {len(numbers)}<br>"
+        f"Direction {_prime_cube_direction_label(direction)}"
+    )
+
+    for x, y, z, text, hovertext in zip(
+        cells["x"],
+        cells["y"],
+        cells["z"],
+        cells["text"],
+        cells["hovertext"],
+    ):
+        if str(text) not in selected:
+            continue
+        result["x"].append(float(x))
+        result["y"].append(float(y))
+        result["z"].append(float(z))
+        result["text"].append(str(text))
+        result["hovertext"].append(f"{hovertext}<br>{line_summary}")
+
+    return result
+
+
+def _prime_cube_grid_lines(
+    *,
+    plane_width: int,
+    plane_height: int,
+    layers: int,
+) -> dict[str, list[int | None]]:
+    grid: dict[str, list[int | None]] = {"x": [], "y": [], "z": []}
+
+    def add_segment(
+        start: tuple[int, int, int],
+        end: tuple[int, int, int],
+    ) -> None:
+        grid["x"].extend((start[0], end[0], None))
+        grid["y"].extend((start[1], end[1], None))
+        grid["z"].extend((start[2], end[2], None))
+
+    for z in range(layers + 1):
+        for y in range(plane_height + 1):
+            add_segment((0, y, z), (plane_width, y, z))
+        for x in range(plane_width + 1):
+            add_segment((x, 0, z), (x, plane_height, z))
+
+    for y in range(plane_height + 1):
+        for x in range(plane_width + 1):
+            add_segment((x, y, 0), (x, y, layers))
+
+    return grid
+
+
+def _prime_cube_html_document(
+    *,
+    title: str,
+    plane_width: int,
+    plane_height: int,
+    layers: int,
+    max_number: int,
+    cells: _PrimeCubeCellGroups,
+    longest_line_numbers: tuple[int, ...],
+    longest_line_direction: tuple[int, int, int],
+    grid: dict[str, list[int | None]],
+    plotly_cdn_url: str,
+) -> str:
+    prime_count = len(cells["primes"]["x"])
+    composite_count = len(cells["composites"]["x"])
+    scene_range_padding = 0.45
+    longest_line_cells = _prime_cube_line_cells(
+        cells=cells["primes"],
+        numbers=longest_line_numbers,
+        direction=longest_line_direction,
+    )
+    prime_mesh = _prime_cube_mesh_trace(
+        name="Primes",
+        cells=cells["primes"],
+        color="#e11d48",
+        opacity=0.94,
+        scale=0.5,
+    )
+    composite_mesh = _prime_cube_mesh_trace(
+        name="Composites",
+        cells=cells["composites"],
+        color="#64748b",
+        opacity=0,
+        scale=0.5,
+    )
+    longest_line_mesh = _prime_cube_mesh_trace(
+        name="Longest Line",
+        cells=longest_line_cells,
+        color="#050505",
+        opacity=1,
+        scale=0.54,
+    )
+    longest_line_mesh["visible"] = True
+    layout = {
+        "autosize": True,
+        "paper_bgcolor": "#f7f9fc",
+        "plot_bgcolor": "#f7f9fc",
+        "margin": {"l": 0, "r": 0, "t": 0, "b": 0},
+        "showlegend": False,
+        "scene": {
+            "aspectmode": "cube",
+            "bgcolor": "#ffffff",
+            "camera": {
+                "eye": {"x": 1.45, "y": -1.6, "z": 1.25},
+                "up": {"x": 0, "y": 0, "z": 1},
+            },
+            "xaxis": _prime_cube_axis("column", -scene_range_padding, plane_width),
+            "yaxis": _prime_cube_axis("row", -scene_range_padding, plane_height),
+            "zaxis": _prime_cube_axis("layer", -scene_range_padding, layers),
+        },
+    }
+    traces = [
+        {
+            "type": "scatter3d",
+            "mode": "lines",
+            "name": "Grid",
+            "x": grid["x"],
+            "y": grid["y"],
+            "z": grid["z"],
+            "line": {"color": "#7c8797", "width": 3},
+            "opacity": 0,
+            "hoverinfo": "skip",
+        },
+        composite_mesh,
+        prime_mesh,
+        longest_line_mesh,
+        {
+            "type": "scatter3d",
+            "mode": "text",
+            "name": "Labels",
+            "x": cells["labels"]["x"],
+            "y": cells["labels"]["y"],
+            "z": cells["labels"]["z"],
+            "text": cells["labels"]["text"],
+            "textfont": {"color": "#111827", "size": 12},
+            "textposition": "middle center",
+            "visible": False,
+            "hoverinfo": "skip",
+        },
+    ]
+    replacements = {
+        "__TITLE__": escape(title),
+        "__PLOTLY_CDN_URL__": escape(plotly_cdn_url, quote=True),
+        "__SUMMARY__": escape(
+            f"{plane_width}x{plane_height}x{layers} | "
+            f"1-{max_number} | {prime_count} primes | {composite_count} non-primes"
+        ),
+        "__TRACES_JSON__": json.dumps(traces, separators=(",", ":")),
+        "__LAYOUT_JSON__": json.dumps(layout, separators=(",", ":")),
+        "__PRIME_CELLS_JSON__": json.dumps(cells["primes"], separators=(",", ":")),
+        "__COMPOSITE_CELLS_JSON__": json.dumps(
+            cells["composites"],
+            separators=(",", ":"),
+        ),
+        "__LONGEST_LINE_CELLS_JSON__": json.dumps(
+            longest_line_cells,
+            separators=(",", ":"),
+        ),
+        "__LONGEST_LINE_TITLE__": escape(
+            f"Length {len(longest_line_numbers)}: "
+            f"{', '.join(str(number) for number in longest_line_numbers)} | "
+            f"{_prime_cube_direction_label(longest_line_direction)}",
+            quote=True,
+        ),
+    }
+    document = _PRIME_CUBE_HTML_TEMPLATE
+    for placeholder, value in replacements.items():
+        document = document.replace(placeholder, value)
+    return document
+
+
+def _prime_cube_axis(title: str, padding: float, size: int) -> dict[str, object]:
+    return {
+        "title": title,
+        "range": [padding, size - padding],
+        "tickmode": "linear",
+        "dtick": 1,
+        "showbackground": True,
+        "backgroundcolor": "#ffffff",
+        "gridcolor": "#dde3ea",
+        "zerolinecolor": "#b6c0cc",
+    }
+
+
+def _prime_cube_mesh_trace(
+    *,
+    name: str,
+    cells: _PrimeCubeCellData,
+    color: str,
+    opacity: float,
+    scale: float,
+) -> dict[str, object]:
+    mesh = _prime_cube_mesh(cells=cells, scale=scale)
+    return {
+        "type": "mesh3d",
+        "name": name,
+        "x": mesh["x"],
+        "y": mesh["y"],
+        "z": mesh["z"],
+        "i": mesh["i"],
+        "j": mesh["j"],
+        "k": mesh["k"],
+        "text": mesh["text"],
+        "hovertext": mesh["hovertext"],
+        "hovertemplate": "%{hovertext}<extra></extra>",
+        "color": color,
+        "flatshading": True,
+        "lighting": {"ambient": 0.48, "diffuse": 0.82, "roughness": 0.72},
+        "lightposition": {"x": 100, "y": -120, "z": 180},
+        "opacity": opacity,
+    }
+
+
+def _prime_cube_mesh(
+    *,
+    cells: _PrimeCubeCellData,
+    scale: float,
+) -> _PrimeCubeMeshData:
+    x_values = cells["x"]
+    y_values = cells["y"]
+    z_values = cells["z"]
+    text_values = cells["text"]
+    hover_values = cells["hovertext"]
+    half_size = scale / 2
+    mesh: _PrimeCubeMeshData = {
+        "x": [],
+        "y": [],
+        "z": [],
+        "i": [],
+        "j": [],
+        "k": [],
+        "text": [],
+        "hovertext": [],
+    }
+    vertex_offsets = (
+        (-half_size, -half_size, -half_size),
+        (half_size, -half_size, -half_size),
+        (half_size, half_size, -half_size),
+        (-half_size, half_size, -half_size),
+        (-half_size, -half_size, half_size),
+        (half_size, -half_size, half_size),
+        (half_size, half_size, half_size),
+        (-half_size, half_size, half_size),
+    )
+    faces = (
+        (0, 1, 2),
+        (0, 2, 3),
+        (4, 6, 5),
+        (4, 7, 6),
+        (0, 4, 5),
+        (0, 5, 1),
+        (1, 5, 6),
+        (1, 6, 2),
+        (2, 6, 7),
+        (2, 7, 3),
+        (3, 7, 4),
+        (3, 4, 0),
+    )
+
+    for x, y, z, text, hovertext in zip(
+        x_values,
+        y_values,
+        z_values,
+        text_values,
+        hover_values,
+    ):
+        vertex_start = len(mesh["x"])
+        for dx, dy, dz in vertex_offsets:
+            mesh["x"].append(float(x) + dx)
+            mesh["y"].append(float(y) + dy)
+            mesh["z"].append(float(z) + dz)
+            mesh["text"].append(str(text))
+            mesh["hovertext"].append(str(hovertext))
+
+        for i, j, k in faces:
+            mesh["i"].append(vertex_start + i)
+            mesh["j"].append(vertex_start + j)
+            mesh["k"].append(vertex_start + k)
+
+    return mesh
+
+
 def _base_primes_upto(limit: int) -> list[int]:
     if limit < 2:
         return []
@@ -970,8 +1550,344 @@ def _validate_grayscale_value(value: int, name: str) -> None:
         raise ValueError(f"{name} must be an integer from 0 to 255")
 
 
+_PRIME_CUBE_HTML_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<script src="__PLOTLY_CDN_URL__"></script>
+<style>
+:root {
+    color-scheme: light;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f7f9fc;
+    color: #141922;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #f7f9fc;
+}
+
+.shell {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+}
+
+.toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(150px, 190px)) auto;
+    gap: 12px;
+    align-items: end;
+    padding: 16px;
+    border-bottom: 1px solid #d9e0e8;
+    background: #ffffff;
+}
+
+.brand h1 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.15;
+    font-weight: 720;
+}
+
+.brand span {
+    display: block;
+    margin-top: 5px;
+    color: #5f6b7a;
+    font-size: 13px;
+}
+
+.control {
+    display: grid;
+    gap: 6px;
+    color: #303846;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.control-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+output {
+    color: #5f6b7a;
+    font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: #e11d48;
+}
+
+.toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.toggle,
+button {
+    min-height: 34px;
+    border: 1px solid #cdd6e1;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #202734;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    white-space: nowrap;
+}
+
+.toggle input {
+    width: 14px;
+    height: 14px;
+    accent-color: #0f766e;
+}
+
+button {
+    padding: 7px 12px;
+    cursor: pointer;
+}
+
+button:hover,
+.toggle:hover {
+    border-color: #9aa8b8;
+    background: #f8fafc;
+}
+
+.plot-wrap {
+    min-height: 0;
+    padding: 0;
+}
+
+#primeCube {
+    width: 100%;
+    height: calc(100vh - 94px);
+    min-height: 520px;
+}
+
+@media (max-width: 980px) {
+    .toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .brand,
+    .toggles {
+        grid-column: 1 / -1;
+    }
+
+    .toggles {
+        justify-content: flex-start;
+    }
+
+    #primeCube {
+        height: calc(100vh - 238px);
+        min-height: 460px;
+    }
+}
+
+@media (max-width: 560px) {
+    .toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .brand,
+    .toggles {
+        grid-column: auto;
+    }
+
+    #primeCube {
+        height: 62vh;
+        min-height: 390px;
+    }
+}
+</style>
+</head>
+<body>
+<main class="shell">
+    <section class="toolbar" aria-label="Prime cube controls">
+        <div class="brand">
+            <h1>__TITLE__</h1>
+            <span>__SUMMARY__</span>
+        </div>
+        <label class="control" for="primeOpacity">
+            <span class="control-row"><span>Prime opacity</span><output id="primeOpacityValue">94%</output></span>
+            <input id="primeOpacity" type="range" min="0.05" max="1" step="0.01" value="0.94">
+        </label>
+        <label class="control" for="compositeOpacity">
+            <span class="control-row"><span>Non-prime opacity</span><output id="compositeOpacityValue">0%</output></span>
+            <input id="compositeOpacity" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <label class="control" for="cubeScale">
+            <span class="control-row"><span>Cube scale</span><output id="cubeScaleValue">50%</output></span>
+            <input id="cubeScale" type="range" min="0.25" max="0.98" step="0.01" value="0.5">
+        </label>
+        <label class="control" for="gridOpacity">
+            <span class="control-row"><span>Grid opacity</span><output id="gridOpacityValue">0%</output></span>
+            <input id="gridOpacity" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <div class="toggles">
+            <label class="toggle"><input id="toggleComposites" type="checkbox" checked>Non-primes</label>
+            <label class="toggle" title="__LONGEST_LINE_TITLE__"><input id="toggleLongestLine" type="checkbox" checked>Longest line</label>
+            <label class="toggle"><input id="toggleLabels" type="checkbox">Labels</label>
+            <label class="toggle"><input id="toggleGrid" type="checkbox" checked>Grid</label>
+            <button id="resetCamera" type="button">Reset view</button>
+        </div>
+    </section>
+    <section class="plot-wrap" aria-label="3D prime cube plot">
+        <div id="primeCube"></div>
+    </section>
+</main>
+<script>
+const traces = __TRACES_JSON__;
+const layout = __LAYOUT_JSON__;
+const primeCells = __PRIME_CELLS_JSON__;
+const compositeCells = __COMPOSITE_CELLS_JSON__;
+const longestLineCells = __LONGEST_LINE_CELLS_JSON__;
+const config = {
+    responsive: true,
+    scrollZoom: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: ["lasso2d", "select2d"]
+};
+const chart = document.getElementById("primeCube");
+const traceIndex = { grid: 0, composites: 1, primes: 2, longestLine: 3, labels: 4 };
+const initialCamera = JSON.parse(JSON.stringify(layout.scene.camera));
+
+Plotly.newPlot(chart, traces, layout, config);
+
+function percent(value) {
+    return `${Math.round(Number(value) * 100)}%`;
+}
+
+function bindRange(inputId, outputId, formatter, callback) {
+    const input = document.getElementById(inputId);
+    const output = document.getElementById(outputId);
+    input.addEventListener("input", () => {
+        output.value = formatter(input.value);
+        callback(Number(input.value));
+    });
+}
+
+bindRange("primeOpacity", "primeOpacityValue", percent, value => {
+    Plotly.restyle(chart, { opacity: value }, [traceIndex.primes]);
+});
+
+bindRange("compositeOpacity", "compositeOpacityValue", percent, value => {
+    Plotly.restyle(chart, { opacity: value }, [traceIndex.composites]);
+});
+
+function cubeMesh(cells, scale) {
+    const halfSize = scale / 2;
+    const offsets = [
+        [-halfSize, -halfSize, -halfSize],
+        [halfSize, -halfSize, -halfSize],
+        [halfSize, halfSize, -halfSize],
+        [-halfSize, halfSize, -halfSize],
+        [-halfSize, -halfSize, halfSize],
+        [halfSize, -halfSize, halfSize],
+        [halfSize, halfSize, halfSize],
+        [-halfSize, halfSize, halfSize]
+    ];
+    const faces = [
+        [0, 1, 2], [0, 2, 3],
+        [4, 6, 5], [4, 7, 6],
+        [0, 4, 5], [0, 5, 1],
+        [1, 5, 6], [1, 6, 2],
+        [2, 6, 7], [2, 7, 3],
+        [3, 7, 4], [3, 4, 0]
+    ];
+    const mesh = { x: [], y: [], z: [], i: [], j: [], k: [], text: [], hovertext: [] };
+
+    cells.x.forEach((x, cellIndex) => {
+        const vertexStart = mesh.x.length;
+        offsets.forEach(offset => {
+            mesh.x.push(x + offset[0]);
+            mesh.y.push(cells.y[cellIndex] + offset[1]);
+            mesh.z.push(cells.z[cellIndex] + offset[2]);
+            mesh.text.push(cells.text[cellIndex]);
+            mesh.hovertext.push(cells.hovertext[cellIndex]);
+        });
+        faces.forEach(face => {
+            mesh.i.push(vertexStart + face[0]);
+            mesh.j.push(vertexStart + face[1]);
+            mesh.k.push(vertexStart + face[2]);
+        });
+    });
+
+    return mesh;
+}
+
+function restyleMesh(trace, mesh) {
+    Plotly.restyle(chart, {
+        x: [mesh.x],
+        y: [mesh.y],
+        z: [mesh.z],
+        i: [mesh.i],
+        j: [mesh.j],
+        k: [mesh.k],
+        text: [mesh.text],
+        hovertext: [mesh.hovertext]
+    }, [trace]);
+}
+
+bindRange("cubeScale", "cubeScaleValue", percent, value => {
+    restyleMesh(traceIndex.composites, cubeMesh(compositeCells, value));
+    restyleMesh(traceIndex.primes, cubeMesh(primeCells, value));
+    restyleMesh(traceIndex.longestLine, cubeMesh(longestLineCells, Math.min(1, value + 0.04)));
+});
+
+bindRange("gridOpacity", "gridOpacityValue", percent, value => {
+    Plotly.restyle(chart, { opacity: value }, [traceIndex.grid]);
+});
+
+document.getElementById("toggleComposites").addEventListener("change", event => {
+    Plotly.restyle(chart, { visible: event.target.checked }, [traceIndex.composites]);
+});
+
+document.getElementById("toggleLongestLine").addEventListener("change", event => {
+    Plotly.restyle(chart, { visible: event.target.checked }, [traceIndex.longestLine]);
+});
+
+document.getElementById("toggleLabels").addEventListener("change", event => {
+    Plotly.restyle(chart, { visible: event.target.checked }, [traceIndex.labels]);
+});
+
+document.getElementById("toggleGrid").addEventListener("change", event => {
+    Plotly.restyle(chart, { visible: event.target.checked }, [traceIndex.grid]);
+});
+
+document.getElementById("resetCamera").addEventListener("click", () => {
+    Plotly.relayout(chart, { "scene.camera": initialCamera });
+});
+</script>
+</body>
+</html>
+"""
+
+
 __all__ = [
+    "DEFAULT_PLOTLY_CDN_URL",
     "LINE_DIRECTIONS",
+    "PrimeCubeHtml",
     "PrimeDotImage",
     "PrimeLine",
     "PrimeLineWorkload",
@@ -979,6 +1895,7 @@ __all__ = [
     "estimate_png_dimensions",
     "estimate_prime_line_workload",
     "generate_graph_dots",
+    "generate_prime_cube_plot_html",
     "generate_prime_dot_png",
     "rank_widths_by_prime_lines",
 ]

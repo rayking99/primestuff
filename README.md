@@ -2,34 +2,34 @@
 
 ![Primewords logo](assets/logo.png)
 
-`primewords` renders prime numbers as dot graphs and experiments with finding
-word-like patterns inside those graphs. Numbers are laid out row by row; prime
-numbers become bright dots, and OCR/template-search tools can scan the resulting
-image for readable shapes.
+`primewords` renders prime numbers as dot graphs and visualises their structure
+in 2D grids, interactive 3D cubes, side snapshots, and straight-line prime-run
+analysis. Numbers are laid out row by row; prime numbers become bright dots, and
+non-primes remain dark.
 
 ## Example
 
-The included crop below is `car-2451-15.png`: Tesseract read `car` in a prime
-graph with width `2451` and chart height `15`.
+Generate a small prime graph image:
 
-![Detected word crop: car-2451-15](Examples/Primes/car-2451-15.png)
-
-Found-word crops use this filename pattern:
-
-```text
-<word>-<graph-width>-<chart-height>.png
+```bash
+uv run python Examples/Primes/generate_img.py
 ```
+
+That writes `Examples/Primes/primes.png`.
 
 ## Project Layout
 
 - `src/primewords/primes.py` contains the reusable package code for rendering
-  prime-dot PNGs and ranking straight-line prime runs.
+  prime-dot PNGs, generating interactive 3D prime cubes, and ranking
+  straight-line prime runs.
 - `Examples/Primes/generate_img.py` creates a small prime graph image.
+- `Examples/Primes/generate_3d_cube.py` creates a Plotly-powered 3D prime cube.
+- `Examples/Primes/generate_3d_cube_side_snapshots.py` renders orthographic PNG
+  snapshots of prime cubes.
 - `Examples/Primes/analyse_line_length.py` ranks graph widths by the longest
   contiguous prime lines.
-- `Examples/Primes/generate_img_analyse_chars.py` runs the OCR and template
-  matching experiments.
-- `Examples/Primes/word_search_cache/found/` contains saved OCR word crops.
+- `Examples/Primes/search_zero_white_box.py` searches cube dimensions for
+  projections with no empty cells.
 
 ## Setup With uv
 
@@ -44,7 +44,6 @@ That creates a Python 3.13 virtual environment and installs the dependencies
 declared in `pyproject.toml`:
 
 - `numpy`
-- `opencv-python`
 - `pandas`
 - `pillow`
 
@@ -60,57 +59,17 @@ Generate the small example prime graph:
 uv run python Examples/Primes/generate_img.py
 ```
 
-## Tesseract Requirement
-
-Tesseract is required for OCR word scans. It is not a Python package, so `uv`
-cannot install it from `pyproject.toml`; install the `tesseract` executable with
-your operating system package manager and make sure it is on `PATH`.
-
-macOS:
+Generate an interactive 3D prime cube:
 
 ```bash
-brew install tesseract
+uv run python Examples/Primes/generate_3d_cube.py
 ```
 
-Ubuntu/Debian:
-
-```bash
-sudo apt-get install tesseract-ocr
-```
-
-Verify it is available:
-
-```bash
-tesseract --version
-```
-
-In prose, the clearest way to say it is:
-
-> OCR features require the Tesseract executable as a system dependency. `uv`
-> installs the Python packages, but Tesseract must be installed separately and
-> available on `PATH`.
-
-Prime graph rendering and line analysis do not need Tesseract; only OCR scans
-do.
-
-## OCR Search Example
-
-To run a focused scan around the included `car-2451-15` example:
-
-```bash
-uv run python Examples/Primes/generate_img_analyse_chars.py \
-    --word car \
-    --width-start 2400 \
-    --max-number 36765 \
-    --chart-height 15 \
-    --workers 4
-```
-
-The OCR script writes scan output to:
-
-- `Examples/Primes/prime_ocr_width_scan.csv`
-- `Examples/Primes/prime_ocr_width_scan.jsonl`
-- `Examples/Primes/word_search_cache/`
+That writes `Examples/Primes/primes_3d_cube.html`, a standalone Plotly scene
+with controls for prime opacity, non-prime opacity, marker size, labels, grid
+visibility, and camera reset. The default cube is `3 x 3 x 3`: `1` sits above
+`10` and `19`, `2` sits above `11` and `20`, and `9` sits above `18` and `27`.
+The HTML loads Plotly.js from the CDN, so no extra Python dependency is needed.
 
 Use `--square-dots` when you want multi-pixel prime cells rendered as filled
 squares instead of round dots.
@@ -118,7 +77,11 @@ squares instead of round dots.
 ## API Example
 
 ```python
-from primewords import generate_prime_dot_png, rank_widths_by_prime_lines
+from primewords import (
+  generate_prime_cube_plot_html,
+  generate_prime_dot_png,
+  rank_widths_by_prime_lines,
+)
 
 metadata = generate_prime_dot_png(
     width=30,
@@ -135,4 +98,12 @@ best_lines = rank_widths_by_prime_lines(
     workers=1,
 )
 print(best_lines[:5])
+
+cube = generate_prime_cube_plot_html(
+  output_path="Examples/Primes/primes_3d_cube.html",
+  plane_width=3,
+  plane_height=3,
+  layers=3,
+)
+print(cube)
 ```
