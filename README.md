@@ -74,16 +74,20 @@ I'm a recreational mathematician, so I asked Gemini if it's anything new- _"the 
 
 It might be flattering me. I didn't have my trusty _'Don't waffle, Don't be sycophantic'_ system instructions in.
 
-But I'd be crazy not to hop on the end of the 67 meme. So here is primestuff.
+I looked briefly at other dimensions ... but the visualisation is not quite as cool. 
+
+I'd be crazy not to hop on the end of the 67 meme. So here is primestuff.
 
 See [67-top.png](assets/cube_side_snapshots_examples/67-top.png)
+
+## Details
 
 `primestuff` renders prime numbers as dot graphs and visualises their structure
 in 2D grids, interactive 3D cubes, side snapshots, and straight-line prime-run
 analysis. Numbers are laid out row by row; prime numbers become bright dots, and
 non-primes remain dark.
 
-## Example
+### Example
 
 Generate a small prime graph image:
 
@@ -93,7 +97,7 @@ uv run python Examples/Primes/generate_img.py
 
 That writes `Examples/Primes/primes.png`.
 
-## Project Layout
+### Project Layout
 
 - `src/primestuff/primes.py` contains the reusable package code for rendering
   prime-dot PNGs, generating interactive 3D prime cubes, and ranking
@@ -109,7 +113,7 @@ That writes `Examples/Primes/primes.png`.
 - `Examples/Primes/search_zero_white_box.py` searches cube dimensions for
   projections with no empty cells.
 
-## Setup With uv
+### Setup With uv
 
 This project is configured as a `uv` package project and pins local development
 to Python 3.13 with `.python-version`. From the repository root:
@@ -175,7 +179,7 @@ searching 4D: sides 3..1000, mode=any, method=auto
   largest prime in side-on PNG/projection: 7,573,350
 ```
 
-## API Example
+### API Example
 
 ```python
 from primestuff import (
