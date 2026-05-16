@@ -1,5 +1,5 @@
 def main():
-    print("Hello from primewords!")
+    print("Hello from primestuff!")
 
 
 if __name__ == "__main__":

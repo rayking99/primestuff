@@ -7,14 +7,14 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from primewords.primes import (
+from primestuff.primes import (
     _base_primes_upto,
     _longest_prime_cube_line,
     _prime_flags_for_range,
 )
 
 OUTPUT_DIR = Path("Examples/Primes/cube_side_snapshots")
-SIZE_RANGE = range(2, 5)
+SIZE_RANGE = range(66, 68)
 CELL_SIZE = 22
 LABEL_SQUARES = True
 SQUARE_LABEL_FONT_SIZE = 7

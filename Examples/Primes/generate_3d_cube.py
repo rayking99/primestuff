@@ -1,4 +1,4 @@
-from primewords.primes import generate_prime_cube_plot_html
+from primestuff.primes import generate_prime_cube_plot_html
 
 sz = 11
 

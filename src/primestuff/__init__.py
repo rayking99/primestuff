@@ -1,6 +1,6 @@
 """Prime graph rendering and search helpers."""
 
-from primewords.primes import (
+from primestuff.primes import (
     DEFAULT_PLOTLY_CDN_URL,
     LINE_DIRECTIONS,
     PrimeCubeHtml,

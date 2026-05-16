@@ -1,8 +1,82 @@
-# primewords
+# primestuff
 
-![Primewords logo](assets/logo.png)
+![primestuff logo](assets/logo.png)
 
-`primewords` renders prime numbers as dot graphs and visualises their structure
+I was looking at [Visualization of Prime Numbers]<https://www.dandad.org/annual/2024/entry/professional/238106> and had a thought.
+
+If you graph the primes in 3d cubes like:
+
+```py
+[
+    [
+        [1,2,3],    # 2, 3
+        [4,5,6],    # 5
+        [7,8,9]     # 7
+    ],
+    [
+        [10,11,12], # 11
+        [13,14,15], # 13
+        [16,17,18]  # 17
+    ],
+    [
+        [19,20,21], # 19
+        [22,23,24], # 23
+        [25,26,27]  # -
+    ]
+]
+```
+
+Projected onto a 2D surface and considering only the primes, this looks like.
+
+```py
+# Front
+[
+    [19,2,3],
+    [13,5,-],
+    [7,17,-]
+]
+
+
+# Side
+[
+    [2,11,19],
+    [5,13,23],
+    [7,17,-]
+]
+
+
+# Top
+[
+    [7,2,3],
+    [13,11,-],
+    [19,23,-]
+]
+
+# The series of primes in the side view are:
+2, 5, 7, 11, 13, 17, 19, 23
+```
+
+This corresponds to:
+
+![alt text](assets/cube_side_snapshots_examples/3-front.png)
+![alt text](assets/cube_side_snapshots_examples/3-side.png)
+![alt text](assets/cube_side_snapshots_examples/3-top.png)
+
+The question becomes, **what is the smallest number for which you get no `-`.**
+
+Ie. which cube is completely filled with numbers when looking from the front, side or top.
+
+The answer is 67 - 67x67x67. The largest prime in this series is 300,719. This is not the largest prime in the cube - but from the view of the side.
+
+I'm a recreational mathematician, so I asked Gemini if it's anything new- _"the underlying mathematics is entirely covered by existing number theory. If you brought this to a number theorist, they wouldn’t say you discovered a new theorem, but they would likely say, "That is a really cool visual metaphor to teach prime gaps...You haven't discovered new math, but you have invented a fantastic visualization tool."_
+
+It might be flattering me. I didn't have my trusty 'Don't waffle, Don't be sycophantic' system prompt in.
+
+But I'd be crazy not to hop on the end of the 67 meme. So here is primestuff.
+
+See [67-top.png](assets/cube_side_snapshots_examples/67-top.png)
+
+`primestuff` renders prime numbers as dot graphs and visualises their structure
 in 2D grids, interactive 3D cubes, side snapshots, and straight-line prime-run
 analysis. Numbers are laid out row by row; prime numbers become bright dots, and
 non-primes remain dark.
@@ -19,13 +93,15 @@ That writes `Examples/Primes/primes.png`.
 
 ## Project Layout
 
-- `src/primewords/primes.py` contains the reusable package code for rendering
+- `src/primestuff/primes.py` contains the reusable package code for rendering
   prime-dot PNGs, generating interactive 3D prime cubes, and ranking
   straight-line prime runs.
 - `Examples/Primes/generate_img.py` creates a small prime graph image.
 - `Examples/Primes/generate_3d_cube.py` creates a Plotly-powered 3D prime cube.
 - `Examples/Primes/generate_3d_cube_side_snapshots.py` renders orthographic PNG
   snapshots of prime cubes.
+- `Examples/Primes/nD_search/search_nd_projection.py` searches 3D, 4D, 5D,
+  and higher-dimensional hypercubes for prime projections with no empty cells.
 - `Examples/Primes/analyse_line_length.py` ranks graph widths by the longest
   contiguous prime lines.
 - `Examples/Primes/search_zero_white_box.py` searches cube dimensions for
@@ -50,7 +126,7 @@ declared in `pyproject.toml`:
 Run a quick package smoke test:
 
 ```bash
-uv run python -c "from primewords import estimate_png_dimensions; print(estimate_png_dimensions(30, 100))"
+uv run python -c "from primestuff import estimate_png_dimensions; print(estimate_png_dimensions(30, 100))"
 ```
 
 Generate the small example prime graph:
@@ -74,10 +150,33 @@ The HTML loads Plotly.js from the CDN, so no extra Python dependency is needed.
 Use `--square-dots` when you want multi-pixel prime cells rendered as filled
 squares instead of round dots.
 
+Search for the higher-dimensional equivalent of the 3D side length `67`:
+
+```bash
+uv run python Examples/Primes/nD_search/search_nd_projection.py --dimensions 4 5 --max-side 250
+```
+
+By default this looks for the first side length where any orthographic
+projection axis has no empty cells, matching the 3D `67` result. Add
+`--mode all` to require every projection axis to be full.
+
+Current 4D result with the default `any` projection mode:
+
+```bash
+uv run python Examples/Primes/nD_search/search_nd_projection.py --dimensions 4 --max-side 1000 --progress 0 --method auto
+```
+
+```text
+searching 4D: sides 3..1000, mode=any, method=auto
+  found 4D side 295 using line: full projection axis/axes: axis 3
+  max number in hypercube: 7,573,350,625
+  largest prime in side-on PNG/projection: 7,573,350
+```
+
 ## API Example
 
 ```python
-from primewords import (
+from primestuff import (
   generate_prime_cube_plot_html,
   generate_prime_dot_png,
   rank_widths_by_prime_lines,

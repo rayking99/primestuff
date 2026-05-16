@@ -1,4 +1,4 @@
-from primewords.primes import estimate_prime_line_workload, rank_widths_by_prime_lines
+from primestuff.primes import estimate_prime_line_workload, rank_widths_by_prime_lines
 import pandas as pd
 
 

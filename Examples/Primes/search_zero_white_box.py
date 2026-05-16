@@ -6,7 +6,7 @@ from math import isqrt
 
 import numpy as np
 
-from primewords.primes import _base_primes_upto, _prime_flags_for_range
+from primestuff.primes import _base_primes_upto, _prime_flags_for_range
 
 
 def main() -> None:

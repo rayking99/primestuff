@@ -1,6 +1,6 @@
 """Compatibility imports for prime-dot graph helpers."""
 
-from primewords.primes import (
+from primestuff.primes import (
     LINE_DIRECTIONS,
     PrimeDotImage,
     PrimeLine,
