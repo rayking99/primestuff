@@ -1,6 +1,6 @@
 # primestuff
 
-<img src="assets/logo.png" alt="primestuff logo" width="320">
+![primestuff logo](assets/logo.png)
 
 I was looking at [Visualization of Prime Numbers](https://www.dandad.org/annual/2024/entry/professional/238106) and had a thought.
 
