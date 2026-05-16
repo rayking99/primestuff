@@ -1,6 +1,6 @@
 from primestuff.primes import generate_prime_cube_plot_html
 
-sz = 11
+sz = 3
 
 whl = sz, sz, sz
 

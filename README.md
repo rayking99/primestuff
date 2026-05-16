@@ -56,11 +56,15 @@ Projected onto a 2D surface and considering only the primes, this looks like.
 2, 5, 7, 11, 13, 17, 19, 23
 ```
 
+The longest line of primes in any direction within this graph is length 3 - 3, 5, 7.
+
 This corresponds to:
 
 ![alt text](assets/cube_side_snapshots_examples/3-front.png)
 ![alt text](assets/cube_side_snapshots_examples/3-side.png)
 ![alt text](assets/cube_side_snapshots_examples/3-top.png)
+
+![alt text](assets/3d-3.png)
 
 The question becomes, **what is the smallest number for which you get no `-`.**
 
