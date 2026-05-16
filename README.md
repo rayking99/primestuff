@@ -6,7 +6,7 @@ If you graph the primes in 3d cubes like:
 
 ```py
 [
-    [
+    [               # PRIMES
         [1,2,3],    # 2, 3
         [4,5,6],    # 5
         [7,8,9]     # 7
@@ -53,6 +53,8 @@ Projected onto a 2D surface and considering only the primes, this looks like.
 # The series of primes in the side view are:
 2, 5, 7, 11, 13, 17, 19, 23
 ```
+
+If the series is new, I will come up with a name.
 
 The longest line of primes in any direction within this graph is length 3 - `[3, 5, 7]`.
 
