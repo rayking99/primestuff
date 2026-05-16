@@ -66,7 +66,7 @@ This corresponds to:
 
 ![alt text](assets/3d-3.png)
 
-The question becomes, **what is the smallest number for which you get no `-`.**
+The question becomes, **what is the smallest number for which you get no `-` viewed from the sides of top of the cube.**
 
 Ie. which cube is completely filled with numbers when looking from the front, side or top.
 
