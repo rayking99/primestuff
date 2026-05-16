@@ -54,7 +54,7 @@ Projected onto a 2D surface and considering only the primes, this looks like.
 2, 5, 7, 11, 13, 17, 19, 23
 ```
 
-The longest line of primes in any direction within this graph is length 3 - 3, 5, 7.
+The longest line of primes in any direction within this graph is length 3 - `[3, 5, 7]`.
 
 This corresponds to:
 
