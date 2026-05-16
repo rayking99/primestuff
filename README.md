@@ -94,7 +94,7 @@ I looked briefly at other dimensions ... but 3d visualisation is what we're conc
 
 I'd be crazy not to hop on the end of the 67 meme. So here is primestuff.
 
-See [67-top.png](assets/cube_side_snapshots_examples/67-top.png)
+See [67-side.png](assets/cube_side_snapshots_examples/67-top.png)
 
 ## Details
 
