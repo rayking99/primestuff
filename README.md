@@ -68,7 +68,7 @@ The question becomes, **what is the smallest number for which you get no `-` vie
 
 Ie. which cube is completely filled with numbers when looking from the front, side or top.
 
-> The answer is 67
+The answer is 67.
 
 67x67x67. The largest prime in this series is 300,719. This is not the largest prime in the cube - but from the view of the side.
 
