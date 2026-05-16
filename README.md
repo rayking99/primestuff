@@ -1,7 +1,5 @@
 # primestuff
 
-![primestuff logo](assets/logo.png)
-
 I was looking at [Visualization of Prime Numbers](https://www.dandad.org/annual/2024/entry/professional/238106) and had a thought.
 
 If you graph the primes in 3d cubes like:
