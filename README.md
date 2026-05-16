@@ -74,7 +74,7 @@ I'm a recreational mathematician, so I asked Gemini if it's anything new- _"the 
 
 It might be flattering me. I didn't have my trusty _'Don't waffle, Don't be sycophantic'_ system instructions in.
 
-I looked briefly at other dimensions ... but the visualisation is not quite as cool. 
+I looked briefly at other dimensions ... but 3d visualisation is what we're concerned with for now. 
 
 I'd be crazy not to hop on the end of the 67 meme. So here is primestuff.
 
