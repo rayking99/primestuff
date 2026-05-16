@@ -74,7 +74,7 @@ The answer is 67.
 
 67x67x67. The largest prime in this series is 300,719. This is not the largest prime in the cube - but from the view of the side.
 
-The first 10 cubes are:
+Under S = 100, where S is the side of the height, width and depth the progression is. 
 
 ```py
 # Cube with sides S x S x S that have a full side below 100
