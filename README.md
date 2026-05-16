@@ -86,7 +86,7 @@ I'm a recreational mathematician, so I asked Gemini if it's anything new
 
 > _"the underlying mathematics is entirely covered by existing number theory. If you brought this to a number theorist, they wouldn’t say you discovered a new theorem, but they would likely say, "That is a really cool visual metaphor to teach prime gaps...You haven't discovered new math, but you have invented a fantastic visualization tool."_
 
-It might be flattering me. I didn't have my trusty _'Don't waffle, Don't be sycophantic'_ system instructions in.
+It might be flattering me. I didn't have my trusty _'Don't waffle, Don't be sycophantic'_ system instruction on.
 
 I build the tool with Copilot, mostly GPT-5.4.
 
