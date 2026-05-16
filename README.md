@@ -56,7 +56,7 @@ Projected onto a 2D surface and considering only the primes, this looks like.
 
 The longest line of primes in any direction within this graph is length 3 - `[3, 5, 7]`.
 
-This corresponds to:
+Here's some visualisations.
 
 ![alt text](assets/cube_side_snapshots_examples/3-front.png)
 ![alt text](assets/cube_side_snapshots_examples/3-side.png)
@@ -74,7 +74,7 @@ I'm a recreational mathematician, so I asked Gemini if it's anything new- _"the 
 
 It might be flattering me. I didn't have my trusty _'Don't waffle, Don't be sycophantic'_ system instructions in.
 
-I looked briefly at other dimensions ... but 3d visualisation is what we're concerned with for now. 
+I looked briefly at other dimensions ... but 3d visualisation is what we're concerned with for now.
 
 I'd be crazy not to hop on the end of the 67 meme. So here is primestuff.
 
