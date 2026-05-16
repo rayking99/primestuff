@@ -14,8 +14,8 @@ from primestuff.primes import (
 )
 
 OUTPUT_DIR = Path("Examples/Primes/cube_side_snapshots")
-SIZE_RANGE = range(66, 68)
-CELL_SIZE = 22
+SIZE_RANGE = range(66, 100)
+CELL_SIZE = 2
 LABEL_SQUARES = True
 SQUARE_LABEL_FONT_SIZE = 7
 

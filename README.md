@@ -74,6 +74,14 @@ The answer is 67.
 
 67x67x67. The largest prime in this series is 300,719. This is not the largest prime in the cube - but from the view of the side.
 
+The first 10 cubes are:
+
+```py
+# Cube with sides S x S x S that have a full side below 100
+
+67, 69, 70, 71, 80, 82, 86, 88, 89, 92, 95, 97, 98, 99
+```
+
 I'm a recreational mathematician, so I asked Gemini if it's anything new- _"the underlying mathematics is entirely covered by existing number theory. If you brought this to a number theorist, they wouldn’t say you discovered a new theorem, but they would likely say, "That is a really cool visual metaphor to teach prime gaps...You haven't discovered new math, but you have invented a fantastic visualization tool."_
 
 It might be flattering me. I didn't have my trusty _'Don't waffle, Don't be sycophantic'_ system instructions in.
